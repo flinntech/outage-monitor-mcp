@@ -9,7 +9,7 @@ An MCP (Model Context Protocol) server that monitors service outages for AT&T, V
 - View current incidents across all monitored services
 - Search for services in the StatusGator database
 - Real-time status monitoring
-- **HTTP/SSE transport for n8n and web integrations**
+- **Streamable HTTP transport for n8n and web integrations**
 - **Docker support for easy deployment**
 - Stdio transport for Claude Desktop
 
@@ -40,12 +40,12 @@ STATUSGATOR_API_KEY=your_actual_api_key_here
 docker-compose up -d
 ```
 
-The server will be available at `http://localhost:3000`
+The server will be available at `http://localhost:3002`
 
 ### 3. Verify It's Running
 
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:3002/health
 ```
 
 You should see:
@@ -79,12 +79,12 @@ PORT=8080 docker-compose up -d
 
 ## Using with n8n
 
-### Method 1: HTTP Request Node
+### HTTP Request Node
 
 1. In n8n, add an **HTTP Request** node
 2. Configure the node:
    - **Method**: POST
-   - **URL**: `http://outage-monitor-mcp:3000/message` (or `http://localhost:3000/message` if running locally)
+   - **URL**: `http://outage-monitor-mcp:3002/mcp` (or `http://localhost:3002/mcp` if running locally)
    - **Body Content Type**: JSON
    - **Body**:
      ```json
@@ -101,15 +101,7 @@ PORT=8080 docker-compose up -d
      }
      ```
 
-### Method 2: MCP Client Node (if available)
-
-If n8n has native MCP support:
-
-1. Add an **MCP Client** node
-2. Configure:
-   - **Transport**: SSE (Server-Sent Events)
-   - **URL**: `http://outage-monitor-mcp:3000/sse`
-   - **Message Endpoint**: `http://outage-monitor-mcp:3000/message`
+The server uses streamable HTTP transport, which means all requests go to a single `/mcp` endpoint using the JSON-RPC 2.0 protocol.
 
 ### Example n8n Workflows
 
@@ -174,11 +166,10 @@ Health check endpoint
 }
 ```
 
-### `GET /sse`
-Server-Sent Events endpoint for MCP connections
+### `POST /mcp`
+Streamable HTTP endpoint for all MCP requests (JSON-RPC 2.0)
 
-### `POST /message`
-MCP message endpoint for tool calls
+This is the main endpoint for tool calls and MCP protocol communication.
 
 ## Available Tools
 
@@ -402,7 +393,7 @@ To use this server with Claude Desktop (stdio mode), add it to your MCP settings
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `STATUSGATOR_API_KEY` | Your StatusGator API key | - | Yes |
-| `PORT` | HTTP server port | `3000` | No |
+| `PORT` | HTTP server port | `3002` | No |
 | `HOST` | HTTP server host | `0.0.0.0` | No |
 | `MCP_TRANSPORT` | Transport mode (`http` or `stdio`) | `http` | No |
 | `NODE_ENV` | Node environment | `production` | No |
@@ -423,7 +414,7 @@ outage-monitor-mcp/
 │   ├── index.ts          # Main entry point (transport router)
 │   ├── server.ts         # Shared MCP server logic
 │   ├── stdio.ts          # Stdio transport (Claude Desktop)
-│   ├── http-server.ts    # HTTP/SSE transport (n8n, web)
+│   ├── http-server.ts    # Streamable HTTP transport (n8n, web)
 │   └── statusgator.ts    # StatusGator API client
 ├── dist/                 # Compiled JavaScript (generated)
 ├── Dockerfile            # Docker image definition
@@ -465,22 +456,22 @@ npm run build
    docker-compose exec outage-monitor env | grep STATUSGATOR
    ```
 
-3. Check if port 3000 is already in use:
+3. Check if port 3002 is already in use:
    ```bash
-   lsof -i :3000
+   lsof -i :3002
    ```
 
 ### Connection Issues with n8n
 
 1. If running both in Docker, use the service name:
-   - URL: `http://outage-monitor-mcp:3000`
+   - URL: `http://outage-monitor-mcp:3002/mcp`
 
 2. If n8n is outside Docker:
-   - URL: `http://localhost:3000`
+   - URL: `http://localhost:3002/mcp`
 
 3. Check network connectivity:
    ```bash
-   curl http://localhost:3000/health
+   curl http://localhost:3002/health
    ```
 
 ### API Rate Limiting
@@ -528,4 +519,4 @@ For issues related to:
 - Built with the [Model Context Protocol SDK](https://github.com/modelcontextprotocol/sdk)
 - Powered by [StatusGator API](https://statusgator.com)
 - Docker containerization for easy deployment
-- HTTP/SSE transport for n8n integration
+- Streamable HTTP transport for n8n integration
