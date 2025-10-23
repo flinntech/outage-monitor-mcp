@@ -512,6 +512,8 @@ outage-monitor-mcp/
 ├── package.json
 ├── tsconfig.json
 ├── .env.example
+├── troubleshoot.sh       # Automated troubleshooting script
+├── TROUBLESHOOTING.md    # Detailed troubleshooting guide
 └── README.md
 ```
 
@@ -534,6 +536,60 @@ npm run build
 
 ## Troubleshooting
 
+### Quick Diagnosis
+
+If you're having trouble connecting n8n to the MCP server, run the automated troubleshooting script:
+
+```bash
+./troubleshoot.sh
+```
+
+This will check:
+- Container status and health
+- Network connectivity between n8n and MCP server
+- Port configuration
+- Authentication setup
+- Endpoint accessibility
+
+**For detailed troubleshooting steps**, see [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
+
+### Common Issues
+
+#### n8n Cannot Connect to MCP Server
+
+**Quick checks:**
+
+1. Verify both containers are on the same Docker network:
+   ```bash
+   # Check MCP server networks
+   docker inspect outage-monitor-mcp --format='{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}'
+
+   # Check n8n networks
+   docker inspect n8n --format='{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}'
+   ```
+
+2. Test connectivity from n8n to MCP server:
+   ```bash
+   docker exec n8n wget -q -O - http://outage-monitor-mcp:3002/health
+   ```
+
+3. If container name doesn't resolve, use IP address:
+   ```bash
+   # Get MCP server IP
+   docker inspect outage-monitor-mcp --format='{{range $k, $v := .NetworkSettings.Networks}}{{$v.IPAddress}}{{end}}'
+
+   # Use in n8n: http://172.x.x.x:3002/mcp
+   ```
+
+4. Verify n8n has the correct URL:
+   - ✓ Correct: `http://outage-monitor-mcp:3002/mcp`
+   - ✗ Wrong: `http://outage-monitor-mcp:3000/mcp` (old port)
+   - ✗ Wrong: `http://outage-monitor-mcp:3002/message` (old endpoint)
+
+5. Check bearer token is set in n8n MCP client
+
+**See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for complete guide**
+
 ### Docker Container Won't Start
 
 1. Check logs:
@@ -551,17 +607,22 @@ npm run build
    lsof -i :3002
    ```
 
-### Connection Issues with n8n
+### Authentication Errors
 
-1. If running both in Docker, use the service name:
-   - URL: `http://outage-monitor-mcp:3002/mcp`
+If you get "No API key provided" or 401/403 errors:
 
-2. If n8n is outside Docker:
-   - URL: `http://localhost:3002/mcp`
+1. **Using n8n MCP Client**: Set bearer token:
+   - Auth Type: Bearer Token
+   - Token: Your StatusGator API key
 
-3. Check network connectivity:
+2. **Using HTTP Request node**: Add Authorization header:
+   - Name: Authorization
+   - Value: `Bearer YOUR_STATUSGATOR_API_KEY`
+
+3. **Alternative**: Set environment variable in `.env`:
    ```bash
-   curl http://localhost:3002/health
+   STATUSGATOR_API_KEY=your_key_here
+   docker-compose restart
    ```
 
 ### API Rate Limiting
