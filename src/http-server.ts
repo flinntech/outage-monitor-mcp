@@ -87,9 +87,6 @@ app.post('/mcp', async (req: Request, res: Response) => {
   console.log('MCP request received:', req.body.method);
 
   try {
-    // Get API key from bearer token or environment
-    const apiKey = getApiKey(req);
-
     // Set headers for streaming
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'no-cache');
@@ -99,6 +96,7 @@ app.post('/mcp', async (req: Request, res: Response) => {
 
     // Handle different MCP request types
     if (request.method === 'initialize') {
+      // Initialize doesn't require authentication
       const response = {
         jsonrpc: '2.0',
         id: request.id,
@@ -114,7 +112,11 @@ app.post('/mcp', async (req: Request, res: Response) => {
         },
       };
       res.json(response);
+    } else if (request.method === 'notifications/initialized') {
+      // Notification acknowledgment - no auth required, no response needed
+      res.status(200).end();
     } else if (request.method === 'tools/list') {
+      // Tools list doesn't require auth - just returns available tools
       // Get the tools from the server
       const tools = [
         {
@@ -187,8 +189,9 @@ app.post('/mcp', async (req: Request, res: Response) => {
       };
       res.json(response);
     } else if (request.method === 'tools/call') {
-      // Forward the tool call to the MCP server's handler
-      // Use the API key from bearer token or environment
+      // Tool calls require authentication - get API key from bearer token or environment
+      const apiKey = getApiKey(req);
+
       const toolName = request.params.name;
       const toolArgs = request.params.arguments;
 
