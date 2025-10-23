@@ -67,6 +67,79 @@ export const TOOLS: Tool[] = [
       required: ['service_name'],
     },
   },
+  {
+    name: 'get_historical_incidents',
+    description: 'Get historical incidents for a service within a date range. Returns past outages and incidents.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        service: {
+          type: 'string',
+          description: 'The service to get history for (e.g., "aws", "azure", "verizon")',
+        },
+        start_date: {
+          type: 'string',
+          description: 'Start date in ISO format (e.g., "2025-01-01T00:00:00Z"). Optional.',
+        },
+        end_date: {
+          type: 'string',
+          description: 'End date in ISO format (e.g., "2025-01-31T23:59:59Z"). Optional.',
+        },
+        status: {
+          type: 'string',
+          description: 'Filter by incident status (e.g., "resolved", "investigating"). Optional.',
+        },
+      },
+      required: ['service'],
+    },
+  },
+  {
+    name: 'get_service_uptime',
+    description: 'Calculate uptime statistics for a service over a specific period. Returns uptime percentage and total downtime.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        service: {
+          type: 'string',
+          description: 'The service to analyze (e.g., "aws", "google-cloud", "att")',
+        },
+        start_date: {
+          type: 'string',
+          description: 'Start date in ISO format (e.g., "2025-01-01T00:00:00Z")',
+        },
+        end_date: {
+          type: 'string',
+          description: 'End date in ISO format (e.g., "2025-01-31T23:59:59Z")',
+        },
+      },
+      required: ['service', 'start_date', 'end_date'],
+    },
+  },
+  {
+    name: 'get_multi_service_history',
+    description: 'Get incident history for multiple services at once. Useful for comparing outages across carriers or cloud providers.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        services: {
+          type: 'array',
+          items: {
+            type: 'string',
+          },
+          description: 'Array of service names (e.g., ["att", "verizon", "t-mobile"])',
+        },
+        start_date: {
+          type: 'string',
+          description: 'Start date in ISO format. Optional.',
+        },
+        end_date: {
+          type: 'string',
+          description: 'End date in ISO format. Optional.',
+        },
+      },
+      required: ['services'],
+    },
+  },
 ];
 
 export function createServer(apiKey: string): Server {
@@ -213,6 +286,120 @@ export function createServer(apiKey: string): Server {
               {
                 type: 'text',
                 text: JSON.stringify(service, null, 2),
+              },
+            ],
+          };
+        }
+
+        case 'get_historical_incidents': {
+          const service = args?.service as string;
+          if (!service) {
+            throw new Error('Service parameter is required');
+          }
+
+          const startDate = args?.start_date as string | undefined;
+          const endDate = args?.end_date as string | undefined;
+          const status = args?.status as string | undefined;
+
+          const incidents = await statusGatorClient.getHistoricalIncidents(
+            service,
+            startDate,
+            endDate,
+            status
+          );
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  service,
+                  total_incidents: incidents.length,
+                  start_date: startDate || 'not specified',
+                  end_date: endDate || 'not specified',
+                  status_filter: status || 'all',
+                  incidents,
+                }, null, 2),
+              },
+            ],
+          };
+        }
+
+        case 'get_service_uptime': {
+          const service = args?.service as string;
+          const startDate = args?.start_date as string;
+          const endDate = args?.end_date as string;
+
+          if (!service) {
+            throw new Error('Service parameter is required');
+          }
+          if (!startDate) {
+            throw new Error('start_date parameter is required');
+          }
+          if (!endDate) {
+            throw new Error('end_date parameter is required');
+          }
+
+          const uptime = await statusGatorClient.getServiceUptime(
+            service,
+            startDate,
+            endDate
+          );
+
+          if (!uptime) {
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    error: `Service '${service}' not found`,
+                  }, null, 2),
+                },
+              ],
+            };
+          }
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(uptime, null, 2),
+              },
+            ],
+          };
+        }
+
+        case 'get_multi_service_history': {
+          const services = args?.services as string[];
+          if (!services || !Array.isArray(services) || services.length === 0) {
+            throw new Error('services parameter is required and must be a non-empty array');
+          }
+
+          const startDate = args?.start_date as string | undefined;
+          const endDate = args?.end_date as string | undefined;
+
+          const history = await statusGatorClient.getMultiServiceHistory(
+            services,
+            startDate,
+            endDate
+          );
+
+          let totalIncidents = 0;
+          for (const incidents of Object.values(history)) {
+            totalIncidents += incidents.length;
+          }
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  services,
+                  total_incidents: totalIncidents,
+                  start_date: startDate || 'not specified',
+                  end_date: endDate || 'not specified',
+                  history,
+                }, null, 2),
               },
             ],
           };
