@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  outage-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: outage-monitor-mcp
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - STATUSGATOR_API_KEY=${STATUSGATOR_API_KEY}
+      - PORT=3000
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+      - MCP_TRANSPORT=http
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge
