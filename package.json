@@ -1,0 +1,35 @@
+{
+  "name": "outage-monitor-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for monitoring outages on AT&T, Verizon, T-Mobile, AWS, Google Cloud, and Azure using StatusGator API",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:stdio": "node dist/stdio.js",
+    "start:http": "node dist/http-server.js",
+    "dev": "tsc && node dist/index.js",
+    "watch": "tsc --watch"
+  },
+  "keywords": [
+    "mcp",
+    "statusgator",
+    "outage-monitor",
+    "status-page"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "node-fetch": "^3.3.2",
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "typescript": "^5.7.2"
+  }
+}
