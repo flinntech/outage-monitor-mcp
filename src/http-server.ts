@@ -5,19 +5,17 @@ import cors from 'cors';
 import { createServer } from './server.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
-// Get API key from environment variable
+// Get API key from environment variable (optional - can use bearer token instead)
 const STATUSGATOR_API_KEY = process.env.STATUSGATOR_API_KEY;
 const PORT = process.env.PORT || 3002;
 const HOST = process.env.HOST || '0.0.0.0';
 
-if (!STATUSGATOR_API_KEY) {
-  console.error('Error: STATUSGATOR_API_KEY environment variable is required');
-  console.error('Please set it in your environment or .env file');
-  process.exit(1);
+// Log startup configuration
+if (STATUSGATOR_API_KEY) {
+  console.log('StatusGator API key loaded from environment variable');
+} else {
+  console.log('No environment API key found - will use bearer token from requests');
 }
-
-// TypeScript doesn't know process.exit prevents further execution
-const apiKey: string = STATUSGATOR_API_KEY;
 
 // Create Express app
 const app = express();
@@ -31,8 +29,44 @@ app.use(cors({
 
 app.use(express.json());
 
-// Create a single MCP server instance
-const mcpServer: Server = createServer(apiKey);
+/**
+ * Extract bearer token from Authorization header
+ */
+function extractBearerToken(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return null;
+  }
+
+  // Check if it's a Bearer token
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (match) {
+    return match[1];
+  }
+
+  return null;
+}
+
+/**
+ * Get API key from bearer token or environment variable
+ */
+function getApiKey(req: Request): string {
+  // First, try to get bearer token from request
+  const bearerToken = extractBearerToken(req);
+  if (bearerToken) {
+    console.log('Using bearer token from Authorization header');
+    return bearerToken;
+  }
+
+  // Fall back to environment variable
+  if (STATUSGATOR_API_KEY) {
+    console.log('Using API key from environment variable');
+    return STATUSGATOR_API_KEY;
+  }
+
+  // No API key available
+  throw new Error('No API key provided. Either set STATUSGATOR_API_KEY environment variable or provide Bearer token in Authorization header');
+}
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -41,14 +75,21 @@ app.get('/health', (req, res) => {
     server: 'outage-monitor-mcp',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
+    auth_methods: [
+      'Bearer token (Authorization header)',
+      'Environment variable (STATUSGATOR_API_KEY)',
+    ],
   });
 });
 
 // Streamable HTTP endpoint for MCP
 app.post('/mcp', async (req: Request, res: Response) => {
-  console.log('MCP request received:', req.body);
+  console.log('MCP request received:', req.body.method);
 
   try {
+    // Get API key from bearer token or environment
+    const apiKey = getApiKey(req);
+
     // Set headers for streaming
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'no-cache');
@@ -147,7 +188,7 @@ app.post('/mcp', async (req: Request, res: Response) => {
       res.json(response);
     } else if (request.method === 'tools/call') {
       // Forward the tool call to the MCP server's handler
-      // We'll call the tools directly here since we can't easily extract the handler
+      // Use the API key from bearer token or environment
       const toolName = request.params.name;
       const toolArgs = request.params.arguments;
 
@@ -269,6 +310,13 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     description: 'MCP server for monitoring outages on AT&T, Verizon, T-Mobile, AWS, Google Cloud, and Azure',
     transport: 'HTTP (Streamable)',
+    authentication: {
+      methods: [
+        'Bearer token via Authorization header (recommended for n8n)',
+        'STATUSGATOR_API_KEY environment variable',
+      ],
+      priority: 'Bearer token takes precedence over environment variable',
+    },
     endpoints: {
       health: '/health',
       mcp: '/mcp (POST)',
@@ -288,4 +336,5 @@ app.listen(Number(PORT), HOST, () => {
   console.log(`Outage Monitor MCP Server running on http://${HOST}:${PORT}`);
   console.log(`MCP endpoint: http://${HOST}:${PORT}/mcp`);
   console.log(`Health check: http://${HOST}:${PORT}/health`);
+  console.log('Authentication: Bearer token (Authorization header) or environment variable');
 });

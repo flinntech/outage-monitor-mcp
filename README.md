@@ -21,20 +21,29 @@ An MCP (Model Context Protocol) server that monitors service outages for AT&T, V
 
 ## Quick Start with Docker
 
-### 1. Clone and Configure
+### 1. Clone and Setup
 
 ```bash
 git clone <repository-url>
 cd outage-monitor-mcp
+```
+
+### 2. Choose Authentication Method
+
+You have two options for providing the StatusGator API key:
+
+**Option A: Environment Variable (for testing/development)**
+```bash
 cp .env.example .env
+# Edit .env and uncomment/set STATUSGATOR_API_KEY
 ```
 
-Edit `.env` and add your StatusGator API key:
-```
-STATUSGATOR_API_KEY=your_actual_api_key_here
-```
+**Option B: Bearer Token (recommended for n8n)**
+- Skip the `.env` configuration
+- Pass the API key as a Bearer token in the Authorization header with each request
+- See [n8n configuration](#using-with-n8n) below
 
-### 2. Run with Docker Compose
+### 3. Run with Docker Compose
 
 ```bash
 docker-compose up -d
@@ -42,7 +51,7 @@ docker-compose up -d
 
 The server will be available at `http://localhost:3002`
 
-### 3. Verify It's Running
+### 4. Verify It's Running
 
 ```bash
 curl http://localhost:3002/health
@@ -79,12 +88,42 @@ PORT=8080 docker-compose up -d
 
 ## Using with n8n
 
-### HTTP Request Node
+The MCP server supports **Bearer token authentication**, which is perfect for n8n's MCP client configuration.
+
+### Authentication Setup
+
+The server accepts the StatusGator API key in two ways:
+
+1. **Bearer Token (Recommended for n8n)** - Pass the API key via the `Authorization` header
+2. **Environment Variable** - Set `STATUSGATOR_API_KEY` in the server environment
+
+**Priority**: Bearer token takes precedence over environment variable.
+
+### n8n MCP Client Configuration
+
+If n8n has native MCP client support:
+
+1. Add an **MCP Client** node in n8n
+2. Configure authentication:
+   - **Auth Type**: Bearer Token
+   - **Token**: Your StatusGator API key
+   - **Transport**: HTTP
+   - **URL**: `http://outage-monitor-mcp:3002/mcp` (or `http://localhost:3002/mcp`)
+
+The MCP client will automatically send the bearer token with every request, and the server will use it to authenticate with StatusGator.
+
+### HTTP Request Node (Alternative)
+
+If using a standard HTTP Request node:
 
 1. In n8n, add an **HTTP Request** node
 2. Configure the node:
    - **Method**: POST
    - **URL**: `http://outage-monitor-mcp:3002/mcp` (or `http://localhost:3002/mcp` if running locally)
+   - **Authentication**: Generic Credential Type
+   - **Generic Auth Type**: Header Auth
+   - **Name**: Authorization
+   - **Value**: `Bearer YOUR_STATUSGATOR_API_KEY`
    - **Body Content Type**: JSON
    - **Body**:
      ```json
@@ -388,15 +427,66 @@ To use this server with Claude Desktop (stdio mode), add it to your MCP settings
 }
 ```
 
+## Authentication
+
+The MCP server supports two authentication methods:
+
+### 1. Bearer Token (Recommended for n8n)
+
+Pass your StatusGator API key in the `Authorization` header:
+
+```
+Authorization: Bearer YOUR_STATUSGATOR_API_KEY
+```
+
+This is the recommended approach for n8n as it keeps credentials secure and allows dynamic configuration per workflow.
+
+**Example with curl:**
+```bash
+curl -X POST http://localhost:3002/mcp \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_STATUSGATOR_API_KEY" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/list"
+  }'
+```
+
+### 2. Environment Variable
+
+Set the `STATUSGATOR_API_KEY` environment variable:
+
+```bash
+export STATUSGATOR_API_KEY=your_api_key_here
+```
+
+Or in your `.env` file:
+```
+STATUSGATOR_API_KEY=your_api_key_here
+```
+
+This is useful for testing, development, or when the server is dedicated to a single API key.
+
+### Authentication Priority
+
+If both methods are provided:
+1. Bearer token from Authorization header (takes precedence)
+2. Environment variable `STATUSGATOR_API_KEY` (fallback)
+
+If neither is provided, requests will fail with an authentication error.
+
 ## Environment Variables
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `STATUSGATOR_API_KEY` | Your StatusGator API key | - | Yes |
+| `STATUSGATOR_API_KEY` | Your StatusGator API key | - | No* |
 | `PORT` | HTTP server port | `3002` | No |
 | `HOST` | HTTP server host | `0.0.0.0` | No |
 | `MCP_TRANSPORT` | Transport mode (`http` or `stdio`) | `http` | No |
 | `NODE_ENV` | Node environment | `production` | No |
+
+\* Not required if using Bearer token authentication
 
 ## Getting Your StatusGator API Key
 

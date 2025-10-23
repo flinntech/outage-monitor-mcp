@@ -10,7 +10,8 @@ services:
     ports:
       - "3002:3002"
     environment:
-      - STATUSGATOR_API_KEY=${STATUSGATOR_API_KEY}
+      # STATUSGATOR_API_KEY is optional - can use bearer token instead
+      - STATUSGATOR_API_KEY=${STATUSGATOR_API_KEY:-}
       - PORT=3002
       - HOST=0.0.0.0
       - NODE_ENV=production
