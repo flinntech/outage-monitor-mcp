@@ -30,6 +30,25 @@ export interface ServiceStatus {
   last_checked: string;
 }
 
+export interface HistoricalQuery {
+  service?: string;
+  start_date?: string;
+  end_date?: string;
+  status?: string;
+  limit?: number;
+}
+
+export interface UptimeStats {
+  service_id: string;
+  service_name: string;
+  period_start: string;
+  period_end: string;
+  total_incidents: number;
+  total_downtime_minutes: number;
+  uptime_percentage: number;
+  incidents: Incident[];
+}
+
 export class StatusGatorClient {
   private apiKey: string;
   private baseUrl: string = 'https://statusgator.com/api/v3';
@@ -209,5 +228,135 @@ export class StatusGatorClient {
       status: status.status,
       incidents: status.current_incidents,
     };
+  }
+
+  /**
+   * Get historical incidents for a service within a date range
+   */
+  async getHistoricalIncidents(
+    serviceName: string,
+    startDate?: string,
+    endDate?: string,
+    status?: string
+  ): Promise<Incident[]> {
+    try {
+      const service = await this.searchService(serviceName);
+      if (!service) {
+        throw new Error(`Service '${serviceName}' not found`);
+      }
+
+      // Get all incidents for the service
+      let incidents = await this.getServiceIncidents(service.id);
+
+      // Filter by date range if provided
+      if (startDate) {
+        const start = new Date(startDate);
+        incidents = incidents.filter(i => new Date(i.created_at) >= start);
+      }
+
+      if (endDate) {
+        const end = new Date(endDate);
+        incidents = incidents.filter(i => new Date(i.created_at) <= end);
+      }
+
+      // Filter by status if provided
+      if (status) {
+        incidents = incidents.filter(i => i.status.toLowerCase() === status.toLowerCase());
+      }
+
+      // Sort by date (newest first)
+      incidents.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      return incidents;
+    } catch (error) {
+      console.error(`Error getting historical incidents: ${error}`);
+      return [];
+    }
+  }
+
+  /**
+   * Get details of a specific incident
+   */
+  async getIncidentDetails(serviceId: string, incidentId: string): Promise<Incident | null> {
+    try {
+      const response = await this.makeRequest<{ data: Incident }>(
+        `/services/${serviceId}/incidents/${incidentId}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error getting incident details: ${error}`);
+      return null;
+    }
+  }
+
+  /**
+   * Calculate uptime statistics for a service over a period
+   */
+  async getServiceUptime(
+    serviceName: string,
+    startDate: string,
+    endDate: string
+  ): Promise<UptimeStats | null> {
+    try {
+      const service = await this.searchService(serviceName);
+      if (!service) {
+        throw new Error(`Service '${serviceName}' not found`);
+      }
+
+      const incidents = await this.getHistoricalIncidents(serviceName, startDate, endDate);
+
+      // Calculate total downtime
+      let totalDowntimeMinutes = 0;
+      incidents.forEach(incident => {
+        if (incident.resolved_at) {
+          const start = new Date(incident.created_at);
+          const end = new Date(incident.resolved_at);
+          const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
+          totalDowntimeMinutes += durationMinutes;
+        }
+      });
+
+      // Calculate period duration in minutes
+      const periodStart = new Date(startDate);
+      const periodEnd = new Date(endDate);
+      const periodMinutes = (periodEnd.getTime() - periodStart.getTime()) / (1000 * 60);
+
+      // Calculate uptime percentage
+      const uptimePercentage = periodMinutes > 0
+        ? ((periodMinutes - totalDowntimeMinutes) / periodMinutes) * 100
+        : 100;
+
+      return {
+        service_id: service.id,
+        service_name: service.name,
+        period_start: startDate,
+        period_end: endDate,
+        total_incidents: incidents.length,
+        total_downtime_minutes: Math.round(totalDowntimeMinutes),
+        uptime_percentage: Math.round(uptimePercentage * 100) / 100,
+        incidents: incidents,
+      };
+    } catch (error) {
+      console.error(`Error calculating uptime: ${error}`);
+      return null;
+    }
+  }
+
+  /**
+   * Get incident history for multiple services
+   */
+  async getMultiServiceHistory(
+    services: string[],
+    startDate?: string,
+    endDate?: string
+  ): Promise<{ [serviceName: string]: Incident[] }> {
+    const results: { [serviceName: string]: Incident[] } = {};
+
+    for (const serviceName of services) {
+      const incidents = await this.getHistoricalIncidents(serviceName, startDate, endDate);
+      results[serviceName] = incidents;
+    }
+
+    return results;
   }
 }

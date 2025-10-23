@@ -178,6 +178,79 @@ app.post('/mcp', async (req: Request, res: Response) => {
             required: ['service_name'],
           },
         },
+        {
+          name: 'get_historical_incidents',
+          description: 'Get historical incidents for a service within a date range. Returns past outages and incidents.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              service: {
+                type: 'string',
+                description: 'The service to get history for (e.g., "aws", "azure", "verizon")',
+              },
+              start_date: {
+                type: 'string',
+                description: 'Start date in ISO format (e.g., "2025-01-01T00:00:00Z"). Optional.',
+              },
+              end_date: {
+                type: 'string',
+                description: 'End date in ISO format (e.g., "2025-01-31T23:59:59Z"). Optional.',
+              },
+              status: {
+                type: 'string',
+                description: 'Filter by incident status (e.g., "resolved", "investigating"). Optional.',
+              },
+            },
+            required: ['service'],
+          },
+        },
+        {
+          name: 'get_service_uptime',
+          description: 'Calculate uptime statistics for a service over a specific period. Returns uptime percentage and total downtime.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              service: {
+                type: 'string',
+                description: 'The service to analyze (e.g., "aws", "google-cloud", "att")',
+              },
+              start_date: {
+                type: 'string',
+                description: 'Start date in ISO format (e.g., "2025-01-01T00:00:00Z")',
+              },
+              end_date: {
+                type: 'string',
+                description: 'End date in ISO format (e.g., "2025-01-31T23:59:59Z")',
+              },
+            },
+            required: ['service', 'start_date', 'end_date'],
+          },
+        },
+        {
+          name: 'get_multi_service_history',
+          description: 'Get incident history for multiple services at once. Useful for comparing outages across carriers or cloud providers.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              services: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                },
+                description: 'Array of service names (e.g., ["att", "verizon", "t-mobile"])',
+              },
+              start_date: {
+                type: 'string',
+                description: 'Start date in ISO format. Optional.',
+              },
+              end_date: {
+                type: 'string',
+                description: 'End date in ISO format. Optional.',
+              },
+            },
+            required: ['services'],
+          },
+        },
       ];
 
       const response = {
@@ -263,6 +336,81 @@ app.post('/mcp', async (req: Request, res: Response) => {
           break;
         }
 
+        case 'get_historical_incidents': {
+          const service = toolArgs?.service;
+          if (!service) {
+            throw new Error('Service parameter is required');
+          }
+          const startDate = toolArgs?.start_date;
+          const endDate = toolArgs?.end_date;
+          const status = toolArgs?.status;
+
+          const incidents = await statusGatorClient.getHistoricalIncidents(
+            service,
+            startDate,
+            endDate,
+            status
+          );
+
+          result = {
+            service,
+            start_date: startDate || 'all time',
+            end_date: endDate || 'now',
+            total_incidents: incidents.length,
+            incidents,
+          };
+          break;
+        }
+
+        case 'get_service_uptime': {
+          const service = toolArgs?.service;
+          const startDate = toolArgs?.start_date;
+          const endDate = toolArgs?.end_date;
+
+          if (!service || !startDate || !endDate) {
+            throw new Error('Service, start_date, and end_date parameters are required');
+          }
+
+          const uptime = await statusGatorClient.getServiceUptime(service, startDate, endDate);
+          if (!uptime) {
+            result = { error: `Could not calculate uptime for service '${service}'` };
+          } else {
+            result = uptime;
+          }
+          break;
+        }
+
+        case 'get_multi_service_history': {
+          const services = toolArgs?.services;
+          if (!services || !Array.isArray(services) || services.length === 0) {
+            throw new Error('Services parameter is required and must be a non-empty array');
+          }
+
+          const startDate = toolArgs?.start_date;
+          const endDate = toolArgs?.end_date;
+
+          const history = await statusGatorClient.getMultiServiceHistory(
+            services,
+            startDate,
+            endDate
+          );
+
+          // Calculate summary statistics
+          let totalIncidents = 0;
+          Object.values(history).forEach(incidents => {
+            totalIncidents += incidents.length;
+          });
+
+          result = {
+            services: services,
+            start_date: startDate || 'all time',
+            end_date: endDate || 'now',
+            total_incidents: totalIncidents,
+            history,
+          };
+          break;
+        }
+
         default:
           throw new Error(`Unknown tool: ${toolName}`);
       }
@@ -330,6 +478,9 @@ app.get('/', (req, res) => {
       'get_service_status',
       'get_all_incidents',
       'search_service',
+      'get_historical_incidents',
+      'get_service_uptime',
+      'get_multi_service_history',
     ],
   });
 });
