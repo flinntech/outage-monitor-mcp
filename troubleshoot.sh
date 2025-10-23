@@ -50,7 +50,7 @@ echo ""
 
 # Step 4: Check which port the server is listening on
 echo "4. Checking server port configuration..."
-PORT=$(docker inspect outage-monitor-mcp | grep -A 10 '"Env"' | grep PORT | cut -d'=' -f2 | tr -d '",')
+PORT=$(docker inspect outage-monitor-mcp --format='{{range .Config.Env}}{{println .}}{{end}}' | grep '^PORT=' | cut -d'=' -f2)
 if [ -z "$PORT" ]; then
     PORT="3002"
 fi
