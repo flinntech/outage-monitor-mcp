@@ -331,6 +331,110 @@ Search for a service by name in the StatusGator database.
 }
 ```
 
+### 6. `get_historical_incidents`
+
+Get historical incidents for a service within a specific date range. Perfect for analyzing past outages and incident patterns.
+
+**Parameters:**
+- `service` (required): Service name
+- `start_date` (optional): Start date in ISO format (e.g., "2025-01-01T00:00:00Z")
+- `end_date` (optional): End date in ISO format (e.g., "2025-01-31T23:59:59Z")
+- `status` (optional): Filter by status (e.g., "resolved", "investigating")
+
+**Example:**
+```json
+{
+  "service": "aws",
+  "start_date": "2025-01-01T00:00:00Z",
+  "end_date": "2025-01-31T23:59:59Z"
+}
+```
+
+**Response:**
+```json
+{
+  "service": "aws",
+  "start_date": "2025-01-01T00:00:00Z",
+  "end_date": "2025-01-31T23:59:59Z",
+  "total_incidents": 3,
+  "incidents": [
+    {
+      "id": "incident-456",
+      "service_name": "Amazon Web Services",
+      "title": "EC2 connectivity issues",
+      "created_at": "2025-01-15T10:30:00Z",
+      "resolved_at": "2025-01-15T12:45:00Z",
+      "status": "resolved"
+    }
+  ]
+}
+```
+
+### 7. `get_service_uptime`
+
+Calculate uptime statistics for a service over a specific period. Returns uptime percentage and total downtime.
+
+**Parameters:**
+- `service` (required): Service name
+- `start_date` (required): Start date in ISO format
+- `end_date` (required): End date in ISO format
+
+**Example:**
+```json
+{
+  "service": "verizon",
+  "start_date": "2025-01-01T00:00:00Z",
+  "end_date": "2025-01-31T23:59:59Z"
+}
+```
+
+**Response:**
+```json
+{
+  "service_id": "verizon",
+  "service_name": "Verizon",
+  "period_start": "2025-01-01T00:00:00Z",
+  "period_end": "2025-01-31T23:59:59Z",
+  "total_incidents": 2,
+  "total_downtime_minutes": 180,
+  "uptime_percentage": 99.75,
+  "incidents": [...]
+}
+```
+
+### 8. `get_multi_service_history`
+
+Get incident history for multiple services at once. Useful for comparing outages across carriers or cloud providers.
+
+**Parameters:**
+- `services` (required): Array of service names
+- `start_date` (optional): Start date in ISO format
+- `end_date` (optional): End date in ISO format
+
+**Example:**
+```json
+{
+  "services": ["att", "verizon", "t-mobile"],
+  "start_date": "2025-01-01T00:00:00Z",
+  "end_date": "2025-01-31T23:59:59Z"
+}
+```
+
+**Response:**
+```json
+{
+  "services": ["att", "verizon", "t-mobile"],
+  "start_date": "2025-01-01T00:00:00Z",
+  "end_date": "2025-01-31T23:59:59Z",
+  "total_incidents": 5,
+  "history": {
+    "att": [...incidents...],
+    "verizon": [...incidents...],
+    "t-mobile": [...incidents...]
+  }
+}
+```
+
 ## Supported Services
 
 The server monitors these services:
