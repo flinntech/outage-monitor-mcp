@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   outage-monitor:
     build:
@@ -28,5 +26,5 @@ services:
       - root_default
 
 networks:
-  mcp-network:
-    driver: bridge
+  root_default:
+    external: true
