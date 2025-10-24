@@ -25,7 +25,7 @@ services:
       retries: 3
       start_period: 5s
     networks:
-      - mcp-network
+      - root_default
 
 networks:
   mcp-network:
