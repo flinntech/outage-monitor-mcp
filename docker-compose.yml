@@ -26,6 +26,7 @@ services:
       start_period: 5s
     networks:
       - root_default
+      - mcp-network
 
 networks:
   mcp-network:
