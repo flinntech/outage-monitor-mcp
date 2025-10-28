@@ -4,21 +4,31 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { createServer } from './server.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StructuredLogger } from './shared/structured-logger.js';
+import { requestTracingMiddleware } from './shared/request-tracing-middleware.js';
 
 // Get API key from environment variable (optional - can use bearer token instead)
 const STATUSGATOR_API_KEY = process.env.STATUSGATOR_API_KEY;
 const PORT = process.env.PORT || 3002;
 const HOST = process.env.HOST || '0.0.0.0';
 
+// Create structured logger
+const logger = new StructuredLogger('outage-monitor-mcp', 'info');
+
 // Log startup configuration
 if (STATUSGATOR_API_KEY) {
   console.log('StatusGator API key loaded from environment variable');
+  logger.info('StatusGator API key loaded from environment');
 } else {
   console.log('No environment API key found - will use bearer token from requests');
+  logger.warn('No environment API key - using bearer tokens');
 }
 
 // Create Express app
 const app = express();
+
+// Add request tracing middleware
+app.use(requestTracingMiddleware({ logger }));
 
 // Enable CORS for all origins (adjust for production)
 app.use(cors({
